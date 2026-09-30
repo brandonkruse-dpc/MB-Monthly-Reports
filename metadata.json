@@ -1,0 +1,6 @@
+{
+  "name": "Student Monthly Progress Report Generator",
+  "description": "Client-side generator that parses Diploma Classes CSV exports, filters by date range, and automatically formats clean, parent-ready 1-2 page student progress summary PDFs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

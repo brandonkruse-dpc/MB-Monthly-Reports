@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Monthly Progress Report Generator</title>
+  <meta name="description" content="Generate 1-2 page parent-ready student progress reports from Diploma Classes spreadsheet CSV exports directly in the browser.">
+  
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- html2pdf.js for client-side PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- JSZip for batch downloading all PDFs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       CSS STYLES - Modern, Professional, Responsive
+       ========================================================================== */
+    :root {
+      --primary: #0f172a;
+      --primary-light: #1e293b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 0;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    /* Top Bar */
+    .navbar {
+      background-color: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      background-color: #f1f5f9;
+      color: #475569;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Grid Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Card Panels */
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Upload Dropzone */
+    .dropzone {
+      border: 2px dashed var(--border-dark);
+      border-radius: 6px;
+      padding: 28px 16px;
+      text-align: center;
+      background-color: #f8fafc;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      background-color: #eff6ff;
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .dropzone-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .dropzone-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .dropzone-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .file-info {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .date-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border-dark);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      background-color: #ffffff;
+      outline: none;
+    }
+
+    .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: #ffffff;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-light);
+    }
+
+    .btn-accent {
+      background-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-accent:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-outline {
+      background-color: #ffffff;
+      border-color: var(--border-dark);
+      color: var(--text);
+    }
+
+    .btn-outline:hover {
+      background-color: #f1f5f9;
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Progress & Status Box */
+    .status-panel {
+      padding: 14px;
+      border-radius: 6px;
+      background-color: #f8fafc;
+      border: 1px solid var(--border);
+      margin-top: 14px;
+      display: none;
+    }
+
+    .progress-bar-bg {
+      height: 6px;
+      background-color: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background-color: var(--accent);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    /* Stats Ribbon */
+    .stats-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .stats-ribbon {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .stat-box {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--primary);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Student List Table */
+    .student-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .student-table th {
+      background-color: #f8fafc;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .student-table td {
+      padding: 12px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .student-table tr:hover {
+      background-color: #f8fafc;
+    }
+
+    /* Column Mapping Accordion */
+    .details-box {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      background: #fdfdfd;
+      margin-top: 14px;
+      font-size: 12px;
+    }
+
+    .details-box summary {
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .mapping-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      margin-top: 10px;
+    }
+
+    /* Modal for Preview */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(2px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: #ffffff;
+      border-radius: 8px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+    }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      background: #e2e8f0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+    }
+
+    /* PDF Report Template (A4 simulated paper) */
+    .report-paper {
+      background: #ffffff;
+      width: 100%;
+      max-width: 794px;
+      padding: 32px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="navbar">
+    <div class="brand">
+      <span>Student Monthly Progress Report Generator</span>
+      <span class="brand-tag">Client-Side Only</span>
+    </div>
+    <div>
+      <button class="btn btn-outline btn-sm" id="btn-load-sample">
+        Load Sample "Diploma Classes" Data
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+    <div class="dashboard-grid">
+      
+      <!-- Left Column: Controls & Upload -->
+      <aside>
+        <!-- File Upload Card -->
+        <div class="card">
+          <div class="card-title">
+            <span>1. Upload Spreadsheet Export</span>
+          </div>
+
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="csv-file-input" accept=".csv,text/csv">
+            <div class="dropzone-icon">📄</div>
+            <div class="dropzone-title">Choose CSV file or drag & drop</div>
+            <div class="dropzone-subtitle">Exported from Diploma Classes tab</div>
+          </div>
+
+          <div id="file-info" class="file-info" style="display: none;">
+            <span id="file-name" style="font-weight: 600;">diploma_classes.csv</span>
+            <span id="file-rows" style="color: var(--text-muted);">0 rows</span>
+          </div>
+
+          <!-- Column Mapping Accordion -->
+          <details class="details-box" id="mapping-accordion">
+            <summary>CSV Column Mapping (Customizable)</summary>
+            <p style="color: var(--text-muted); margin-top: 6px; font-size: 11px;">
+              Verify or adjust column header names if your CSV export uses different headers:
+            </p>
+            <div class="mapping-grid">
+              <div>
+                <label class="form-label" style="font-size: 11px;">Student Name Column:</label>
+                <input type="text" id="col-student" class="form-control" value="Student Name">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Grade Column:</label>
+                <input type="text" id="col-grade" class="form-control" value="grade">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Class Name Column:</label>
+                <input type="text" id="col-class" class="form-control" value="class.name">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Task Name Column:</label>
+                <input type="text" id="col-task" class="form-control" value="name">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Assessment Category:</label>
+                <input type="text" id="col-category" class="form-control" value="category.name">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Due Date Column:</label>
+                <input type="text" id="col-date" class="form-control" value="Due Date">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Dropbox Status:</label>
+                <input type="text" id="col-status" class="form-control" value="Dropbox Status">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Teacher Comments:</label>
+                <input type="text" id="col-notes" class="form-control" value="notes">
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Date Range Filter Card -->
+        <div class="card">
+          <div class="card-title">
+            <span>2. Reporting Period</span>
+          </div>
+
+          <div class="form-group">
+            <div class="date-row">
+              <div>
+                <label class="form-label">Start Date</label>
+                <input type="date" id="start-date" class="form-control">
+              </div>
+              <div>
+                <label class="form-label">End Date</label>
+                <input type="date" id="end-date" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top: 8px;">
+            <button type="button" class="btn btn-outline btn-sm" id="btn-preset-all">All Available</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-preset-month">This Month</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-preset-oct">October 2026</button>
+          </div>
+        </div>
+
+        <!-- Action Card -->
+        <div class="card">
+          <button type="button" class="btn btn-primary" id="btn-process">
+            Generate Reports
+          </button>
+
+          <!-- Status Bar -->
+          <div id="status-panel" class="status-panel">
+            <div id="status-text" style="font-size: 12.5px; font-weight: 600; color: var(--primary);">
+              Ready
+            </div>
+            <div class="progress-bar-bg">
+              <div id="progress-bar" class="progress-bar-fill"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Student Results & Reports -->
+      <section>
+        <!-- Stats Ribbon -->
+        <div class="stats-ribbon">
+          <div class="stat-box">
+            <div class="stat-label">Students Found</div>
+            <div class="stat-value" id="stat-students">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tasks in Period</div>
+            <div class="stat-value" id="stat-tasks">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Total Raw Rows</div>
+            <div class="stat-value" id="stat-raw">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Completion Avg</div>
+            <div class="stat-value" id="stat-avg-comp">0%</div>
+          </div>
+        </div>
+
+        <!-- Student Reports Table Card -->
+        <div class="card">
+          <div class="card-title">
+            <span>Student Reports Summary</span>
+            <div class="btn-group" id="bulk-actions" style="display: none;">
+              <button class="btn btn-accent btn-sm" id="btn-download-all-zip">
+                Download All (ZIP)
+              </button>
+              <button class="btn btn-outline btn-sm" id="btn-print-all">
+                Print / Save All
+              </button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="student-table" id="results-table">
+              <thead>
+                <tr>
+                  <th>Student Name</th>
+                  <th>Grade</th>
+                  <th>Classes</th>
+                  <th>Tasks</th>
+                  <th>Completion</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="student-tbody">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 48px; color: var(--text-muted);">
+                    Upload a CSV file or click <strong>Load Sample "Diploma Classes" Data</strong> to begin.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Report Preview Modal -->
+  <div class="modal-backdrop" id="preview-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700; color: var(--primary);" id="modal-student-name">
+          Report Preview
+        </h3>
+        <button class="btn btn-outline btn-sm" id="btn-close-modal">✕ Close</button>
+      </div>
+      <div class="modal-body" id="modal-body-container">
+        <!-- Rendered Report will be placed here -->
+      </div>
+      <div class="modal-footer">
+        <div style="font-size: 12px; color: var(--text-muted);" id="modal-page-info">
+          1-2 Page Printable Parent Summary
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-outline btn-sm" id="btn-modal-print">Print Report</button>
+          <button class="btn btn-accent btn-sm" id="btn-modal-download-pdf">Download PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Container for html2pdf conversion -->
+  <div id="hidden-pdf-container" style="position: fixed; left: -9999px; top: 0; width: 794px; background: #ffffff;"></div>
+
+  <!-- ==========================================================================
+       JAVASCRIPT LOGIC - Client-Side Data Ingestion, Filtering, and PDF Export
+       ========================================================================== -->
+  <script>
+    /*
+     * COLUMN MAPPING CONFIGURATION
+     * -------------------------------------------------------------
+     * If your spreadsheet uses different column headers, you can either:
+     * 1. Change the values below in code, OR
+     * 2. Use the "CSV Column Mapping" panel in the UI.
+     */
+    let columnMapping = {
+      studentName: 'Student Name',
+      grade: 'grade',
+      className: 'class.name',
+      taskName: 'name',
+      category: 'category.name',
+      dueDate: 'Due Date',
+      dropboxStatus: 'Dropbox Status',
+      notes: 'notes'
+    };
+
+    let rawParsedRows = [];
+    let currentStudentReports = [];
+    let activePreviewReport = null;
+
+    // DOM Elements
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('csv-file-input');
+    const fileInfo = document.getElementById('file-info');
+    const fileNameEl = document.getElementById('file-name');
+    const fileRowsEl = document.getElementById('file-rows');
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+    const btnProcess = document.getElementById('btn-process');
+    const btnLoadSample = document.getElementById('btn-load-sample');
+    const statusPanel = document.getElementById('status-panel');
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const studentTbody = document.getElementById('student-tbody');
+    const bulkActions = document.getElementById('bulk-actions');
+    const btnDownloadAllZip = document.getElementById('btn-download-all-zip');
+    const btnPrintAll = document.getElementById('btn-print-all');
+
+    // Modal elements
+    const previewModal = document.getElementById('preview-modal');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const modalStudentName = document.getElementById('modal-student-name');
+    const modalBodyContainer = document.getElementById('modal-body-container');
+    const btnModalDownloadPdf = document.getElementById('btn-modal-download-pdf');
+    const btnModalPrint = document.getElementById('btn-modal-print');
+
+    // Presets
+    document.getElementById('btn-preset-month').addEventListener('click', () => {
+      const now = new Date();
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      startDateInput.value = formatDateToYYYYMMDD(first);
+      endDateInput.value = formatDateToYYYYMMDD(last);
+    });
+
+    document.getElementById('btn-preset-oct').addEventListener('click', () => {
+      startDateInput.value = '2026-10-01';
+      endDateInput.value = '2026-10-31';
+    });
+
+    document.getElementById('btn-preset-all').addEventListener('click', () => {
+      startDateInput.value = '';
+      endDateInput.value = '';
+    });
+
+    // Helper: YYYY-MM-DD
+    function formatDateToYYYYMMDD(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + d;
+    }
+
+    // Date Parser
+    function parseDateString(dateStr) {
+      if (!dateStr) return null;
+      if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+      const str = String(dateStr).trim();
+      if (!str) return null;
+
+      const timestamp = Date.parse(str);
+      if (!isNaN(timestamp)) {
+        const d = new Date(timestamp);
+        if (d.getFullYear() > 1990 && d.getFullYear() < 2100) return d;
+      }
+
+      // MM/DD/YYYY
+      const usMatch = str.match(/^(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{2,4})/);
+      if (usMatch) {
+        let month = parseInt(usMatch[1], 10) - 1;
+        let day = parseInt(usMatch[2], 10);
+        let year = parseInt(usMatch[3], 10);
+        if (year < 100) year += 2000;
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      // YYYY-MM-DD
+      const isoMatch = str.match(/^(\\d{4})[\\/\\-](\\d{1,2})[\\/\\-](\\d{1,2})/);
+      if (isoMatch) {
+        let year = parseInt(isoMatch[1], 10);
+        let month = parseInt(isoMatch[2], 10) - 1;
+        let day = parseInt(isoMatch[3], 10);
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      return null;
+    }
+
+    function formatDateForDisplay(dateStrOrObj) {
+      if (!dateStrOrObj) return 'N/A';
+      const d = typeof dateStrOrObj === 'string' ? parseDateString(dateStrOrObj) : dateStrOrObj;
+      if (!d || isNaN(d.getTime())) return String(dateStrOrObj);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // CSV File Selection
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      fileNameEl.textContent = file.name;
+      fileInfo.style.display = 'flex';
+      
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        complete: function(results) {
+          rawParsedRows = results.data;
+          fileRowsEl.textContent = rawParsedRows.length + ' rows loaded';
+          document.getElementById('stat-raw').textContent = rawParsedRows.length;
+
+          // Auto-detect columns
+          autoDetectColumns(results.meta.fields || []);
+
+          // Auto-detect date bounds
+          autoDetectDateBounds();
+
+          // Process immediately
+          processReports();
+        },
+        error: function(err) {
+          alert('Error parsing CSV: ' + err.message);
+        }
+      });
+    }
+
+    function autoDetectColumns(headers) {
+      const map = { ...columnMapping };
+      const normalized = headers.map(h => ({ raw: h, clean: h.trim().toLowerCase() }));
+
+      function match(aliases, defaultVal) {
+        const found = normalized.find(n => aliases.includes(n.clean));
+        return found ? found.raw : defaultVal;
+      }
+
+      map.studentName = match(['student name', 'student', 'full name', 'student_name'], 'Student Name');
+      map.grade = match(['grade', 'grade level', 'year'], 'grade');
+      map.className = match(['class.name', 'class name', 'classname', 'class', 'course'], 'class.name');
+      map.taskName = match(['name', 'task name', 'assignment', 'task'], 'name');
+      map.category = match(['category.name', 'category name', 'category', 'type'], 'category.name');
+      map.dueDate = match(['due date', 'duedate', 'due_date', 'date'], 'Due Date');
+      map.dropboxStatus = match(['dropbox status', 'dropboxstatus', 'status'], 'Dropbox Status');
+      map.notes = match(['notes', 'teacher comments', 'comments', 'feedback'], 'notes');
+
+      columnMapping = map;
+
+      // Update inputs
+      document.getElementById('col-student').value = map.studentName;
+      document.getElementById('col-grade').value = map.grade;
+      document.getElementById('col-class').value = map.className;
+      document.getElementById('col-task').value = map.taskName;
+      document.getElementById('col-category').value = map.category;
+      document.getElementById('col-date').value = map.dueDate;
+      document.getElementById('col-status').value = map.dropboxStatus;
+      document.getElementById('col-notes').value = map.notes;
+    }
+
+    function autoDetectDateBounds() {
+      let minT = Infinity;
+      let maxT = -Infinity;
+      rawParsedRows.forEach(r => {
+        const val = r[columnMapping.dueDate];
+        const d = parseDateString(val);
+        if (d) {
+          const t = d.getTime();
+          if (t < minT) minT = t;
+          if (t > maxT) maxT = t;
+        }
+      });
+
+      if (minT !== Infinity && maxT !== -Infinity) {
+        if (!startDateInput.value) startDateInput.value = formatDateToYYYYMMDD(new Date(minT));
+        if (!endDateInput.value) endDateInput.value = formatDateToYYYYMMDD(new Date(maxT));
+      }
+    }
+
+    // Read column mapping from inputs
+    function syncMappingFromInputs() {
+      columnMapping.studentName = document.getElementById('col-student').value.trim();
+      columnMapping.grade = document.getElementById('col-grade').value.trim();
+      columnMapping.className = document.getElementById('col-class').value.trim();
+      columnMapping.taskName = document.getElementById('col-task').value.trim();
+      columnMapping.category = document.getElementById('col-category').value.trim();
+      columnMapping.dueDate = document.getElementById('col-date').value.trim();
+      columnMapping.dropboxStatus = document.getElementById('col-status').value.trim();
+      columnMapping.notes = document.getElementById('col-notes').value.trim();
+    }
+
+    // Process & Filter
+    btnProcess.addEventListener('click', () => {
+      if (rawParsedRows.length === 0) {
+        alert('Please select a CSV file or load sample data first.');
+        return;
+      }
+      processReports();
+    });
+
+    function processReports() {
+      syncMappingFromInputs();
+      showStatus('Filtering data and grouping by student...', 30);
+
+      const startDateVal = startDateInput.value;
+      const endDateVal = endDateInput.value;
+      const startObj = startDateVal ? new Date(startDateVal + 'T00:00:00') : null;
+      const endObj = endDateVal ? new Date(endDateVal + 'T23:59:59') : null;
+
+      const studentMap = {};
+      let totalTasksInPeriod = 0;
+
+      rawParsedRows.forEach((row, idx) => {
+        const sName = row[columnMapping.studentName];
+        if (!sName || String(sName).trim() === '') return;
+
+        const student = String(sName).trim();
+        const rawDate = row[columnMapping.dueDate];
+        const parsedD = parseDateString(rawDate);
+
+        // Date Filter
+        if (parsedD) {
+          if (startObj && parsedD < startObj) return;
+          if (endObj && parsedD > endObj) return;
+        } else if (startObj || endObj) {
+          return;
+        }
+
+        totalTasksInPeriod++;
+
+        const grade = row[columnMapping.grade] ? String(row[columnMapping.grade]).trim() : '';
+        const cName = row[columnMapping.className] ? String(row[columnMapping.className]).trim() : 'General Class';
+        const tName = row[columnMapping.taskName] ? String(row[columnMapping.taskName]).trim() : 'Task ' + (idx + 1);
+        const cat = row[columnMapping.category] ? String(row[columnMapping.category]).trim() : 'Assessment';
+        const notes = row[columnMapping.notes] ? String(row[columnMapping.notes]).trim() : '';
+        const status = row[columnMapping.dropboxStatus] ? String(row[columnMapping.dropboxStatus]).trim() : 'Submitted';
+
+        if (!studentMap[student]) {
+          studentMap[student] = { grade: grade || '11/12', tasks: [] };
+        } else if (grade && !studentMap[student].grade) {
+          studentMap[student].grade = grade;
+        }
+
+        studentMap[student].tasks.push({
+          className: cName,
+          taskName: tName,
+          category: cat,
+          dueDate: rawDate,
+          parsedDate: parsedD,
+          dropboxStatus: status,
+          notes: notes
+        });
+      });
+
+      // Transform to Array
+      currentStudentReports = Object.keys(studentMap).sort().map(sName => {
+        const info = studentMap[sName];
+        const sortedTasks = info.tasks.sort((a, b) => {
+          if (!a.parsedDate) return 1;
+          if (!b.parsedDate) return -1;
+          return a.parsedDate.getTime() - b.parsedDate.getTime();
+        });
+
+        const uniqueClasses = Array.from(new Set(sortedTasks.map(t => t.className))).filter(Boolean);
+        const total = sortedTasks.length;
+        const completed = sortedTasks.filter(t => {
+          const s = t.dropboxStatus.toLowerCase();
+          return s.includes('completed') || s.includes('submitted') || s.includes('graded') || s.includes('turned in') || s.includes('done');
+        }).length;
+        const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        return {
+          studentName: sName,
+          grade: info.grade,
+          classes: uniqueClasses,
+          tasks: sortedTasks,
+          stats: {
+            totalTasks: total,
+            completedTasks: completed,
+            completionRate: rate
+          }
+        };
+      });
+
+      // Update Stats
+      document.getElementById('stat-students').textContent = currentStudentReports.length;
+      document.getElementById('stat-tasks').textContent = totalTasksInPeriod;
+      
+      const avgRate = currentStudentReports.length > 0
+        ? Math.round(currentStudentReports.reduce((acc, r) => acc + r.stats.completionRate, 0) / currentStudentReports.length)
+        : 0;
+      document.getElementById('stat-avg-comp').textContent = avgRate + '%';
+
+      renderTable();
+      showStatus('Reports ready for ' + currentStudentReports.length + ' students!', 100);
+      bulkActions.style.display = currentStudentReports.length > 0 ? 'flex' : 'none';
+    }
+
+    function renderTable() {
+      if (currentStudentReports.length === 0) {
+        studentTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 36px; color: var(--text-muted);">No student records matched the selected date filter.</td></tr>';
+        return;
+      }
+
+      studentTbody.innerHTML = currentStudentReports.map((report, idx) => {
+        return '<tr>' +
+          '<td style="font-weight: 700; color: var(--primary);">' + escapeHtml(report.studentName) + '</td>' +
+          '<td>' + escapeHtml(report.grade || '11/12') + '</td>' +
+          '<td><span style="font-size: 11.5px; color: #475569;">' + report.classes.length + ' Classes</span></td>' +
+          '<td><span style="font-size: 12px; font-weight: 600;">' + report.tasks.length + '</span></td>' +
+          '<td><span style="font-weight: 700; color: ' + (report.stats.completionRate >= 80 ? '#059669' : '#d97706') + ';">' + report.stats.completionRate + '%</span></td>' +
+          '<td style="text-align: right;">' +
+            '<button class="btn btn-outline btn-sm" onclick="previewReport(' + idx + ')" style="margin-right: 6px;">Preview</button>' +
+            '<button class="btn btn-primary btn-sm" onclick="downloadSingleReport(' + idx + ')">PDF</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function showStatus(text, percent) {
+      statusPanel.style.display = 'block';
+      statusText.textContent = text;
+      progressBar.style.width = percent + '%';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getDateRangeDescription() {
+      const s = startDateInput.value ? formatDateForDisplay(startDateInput.value) : 'Term Start';
+      const e = endDateInput.value ? formatDateForDisplay(endDateInput.value) : 'Term End';
+      return s + ' — ' + e;
+    }
+
+    // Generate HTML for a report
+    function generateReportHTML(report) {
+      const dateText = getDateRangeDescription();
+      const classPills = report.classes.map(c => 
+        '<span style="display: inline-block; background-color: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 6px; margin-bottom: 6px;">' + escapeHtml(c) + '</span>'
+      ).join('');
+
+      const rows = report.tasks.map((t, idx) => {
+        const isEven = idx % 2 === 0;
+        const bg = isEven ? '#ffffff' : '#f8fafc';
+        const formattedDate = formatDateForDisplay(t.parsedDate || t.dueDate);
+
+        let badgeStyle = 'background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1;';
+        const st = t.dropboxStatus.toLowerCase();
+        if (st.includes('completed') || st.includes('graded') || st.includes('turned in')) {
+          badgeStyle = 'background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;';
+        } else if (st.includes('late')) {
+          badgeStyle = 'background-color: #fffbeb; color: #92400e; border: 1px solid #fde68a;';
+        } else if (st.includes('resubmission') || st.includes('missing')) {
+          badgeStyle = 'background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca;';
+        }
+
+        return '<tr style="background-color: ' + bg + '; page-break-inside: avoid; break-inside: avoid;">' +
+          '<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #0f172a; width: 22%;">' + escapeHtml(t.className) + '</td>' +
+          '<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; width: 24%;">' +
+            '<div style="font-weight: 600; color: #0f172a;">' + escapeHtml(t.taskName) + '</div>' +
+            '<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Due: ' + escapeHtml(formattedDate) + '</div>' +
+          '</td>' +
+          '<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; width: 16%;">' +
+            '<span style="display: inline-block; background-color: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-size: 11px;">' + escapeHtml(t.category) + '</span>' +
+          '</td>' +
+          '<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11px; width: 16%;">' +
+            '<span style="display: inline-block; padding: 3px 6px; border-radius: 4px; font-weight: 600; ' + badgeStyle + '">' + escapeHtml(t.dropboxStatus) + '</span>' +
+          '</td>' +
+          '<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; color: #334155; line-height: 1.4; width: 22%;">' +
+            (escapeHtml(t.notes) || '<span style="color: #94a3b8; font-style: italic;">No specific comments</span>') +
+          '</td>' +
+        '</tr>';
+      }).join('');
+
+      return '<div class="report-paper" style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #ffffff; padding: 28px 32px; box-sizing: border-box; line-height: 1.45;">' +
+        '<div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 18px;">' +
+          '<div>' +
+            '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 2px;">High School Diploma Program</div>' +
+            '<h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #0f172a;">Student Monthly Progress Report</h1>' +
+            '<div style="font-size: 12.5px; color: #475569; margin-top: 3px;">Reporting Period: <strong>' + escapeHtml(dateText) + '</strong></div>' +
+          '</div>' +
+          '<div style="text-align: right;">' +
+            '<div style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Official Summary</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 20px;">' +
+          '<div>' +
+            '<div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600;">Student Name</div>' +
+            '<div style="font-size: 17px; font-weight: 800; color: #0f172a; margin-top: 2px;">' + escapeHtml(report.studentName) + '</div>' +
+            '<div style="font-size: 12px; color: #334155; margin-top: 2px;">Grade Level: <strong>' + escapeHtml(report.grade || '11/12') + '</strong></div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600;">Monthly Summary</div>' +
+            '<div style="display: flex; gap: 14px; margin-top: 4px;">' +
+              '<div><div style="font-size: 16px; font-weight: 800;">' + report.stats.totalTasks + '</div><div style="font-size: 10.5px; color: #64748b;">Tasks</div></div>' +
+              '<div style="border-left: 1px solid #cbd5e1; padding-left: 10px;"><div style="font-size: 16px; font-weight: 800; color: #059669;">' + report.stats.completedTasks + '</div><div style="font-size: 10.5px; color: #64748b;">Completed</div></div>' +
+              '<div style="border-left: 1px solid #cbd5e1; padding-left: 10px;"><div style="font-size: 16px; font-weight: 800; color: #2563eb;">' + report.stats.completionRate + '%</div><div style="font-size: 10.5px; color: #64748b;">Rate</div></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="margin-bottom: 18px;">' +
+          '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; margin-bottom: 6px;">Enrolled Classes (' + report.classes.length + ')</div>' +
+          '<div>' + classPills + '</div>' +
+        '</div>' +
+
+        '<div style="margin-bottom: 20px;">' +
+          '<div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; margin-bottom: 8px;">Task & Assessment Records</div>' +
+          '<table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; text-align: left;">' +
+            '<thead>' +
+              '<tr style="background-color: #0f172a; color: #ffffff;">' +
+                '<th style="padding: 8px 10px; font-size: 10.5px; font-weight: 700;">Class</th>' +
+                '<th style="padding: 8px 10px; font-size: 10.5px; font-weight: 700;">Task Name</th>' +
+                '<th style="padding: 8px 10px; font-size: 10.5px; font-weight: 700;">Category</th>' +
+                '<th style="padding: 8px 10px; font-size: 10.5px; font-weight: 700;">Status</th>' +
+                '<th style="padding: 8px 10px; font-size: 10.5px; font-weight: 700;">Teacher Comments</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' + (rows || '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #64748b;">No tasks found.</td></tr>') + '</tbody>' +
+          '</table>' +
+        '</div>' +
+
+        '<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #cbd5e1; page-break-inside: avoid; break-inside: avoid;">' +
+          '<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; font-size: 11px; color: #475569;">' +
+            '<div>' +
+              '<strong style="color: #0f172a;">Note to Parents & Guardians:</strong>' +
+              '<p style="margin-top: 3px;">This report summarizes course assignments and feedback for the specified period. For questions regarding academic progress, please contact the instructor.</p>' +
+            '</div>' +
+            '<div style="border-top: 1px dashed #94a3b8; padding-top: 6px; text-align: center; margin-top: 14px;">' +
+              '<div style="font-size: 10px; text-transform: uppercase; color: #64748b;">Parent Signature & Date</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+      '</div>';
+    }
+
+    // Preview
+    window.previewReport = function(index) {
+      const report = currentStudentReports[index];
+      if (!report) return;
+      activePreviewReport = report;
+      modalStudentName.textContent = report.studentName + ' - Monthly Progress Report';
+      modalBodyContainer.innerHTML = generateReportHTML(report);
+      previewModal.style.display = 'flex';
+    };
+
+    btnCloseModal.addEventListener('click', () => {
+      previewModal.style.display = 'none';
+    });
+
+    previewModal.addEventListener('click', (e) => {
+      if (e.target === previewModal) previewModal.style.display = 'none';
+    });
+
+    btnModalPrint.addEventListener('click', () => {
+      if (!activePreviewReport) return;
+      printSingleReport(activePreviewReport);
+    });
+
+    btnModalDownloadPdf.addEventListener('click', () => {
+      if (!activePreviewReport) return;
+      downloadReportPDF(activePreviewReport);
+    });
+
+    window.downloadSingleReport = function(index) {
+      const report = currentStudentReports[index];
+      if (report) downloadReportPDF(report);
+    };
+
+    // PDF Generation using html2pdf
+    async function downloadReportPDF(report) {
+      showStatus('Rendering PDF for ' + report.studentName + '...', 50);
+      const container = document.getElementById('hidden-pdf-container');
+      container.innerHTML = generateReportHTML(report);
+
+      const cleanName = report.studentName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: 'Progress_Report_' + cleanName + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      try {
+        await html2pdf().set(opt).from(container).save();
+        showStatus('Downloaded PDF for ' + report.studentName, 100);
+      } catch (err) {
+        alert('PDF generation error: ' + err.message);
+      } finally {
+        container.innerHTML = '';
+      }
+    }
+
+    // Print Single
+    function printSingleReport(report) {
+      const w = window.open('', '_blank');
+      w.document.write('<html><head><title>' + escapeHtml(report.studentName) + ' Report</title><style>@page{size:A4 portrait;margin:10mm;}body{margin:0;}</style></head><body>' + generateReportHTML(report) + '<script>window.onload=function(){window.print();};<\\/script></body></html>');
+      w.document.close();
+    }
+
+    // Print All
+    btnPrintAll.addEventListener('click', () => {
+      if (currentStudentReports.length === 0) return;
+      const w = window.open('', '_blank');
+      const allPages = currentStudentReports.map((r, i) => 
+        '<div style="' + (i > 0 ? 'page-break-before: always; break-before: page;' : '') + '">' + generateReportHTML(r) + '</div>'
+      ).join('');
+
+      w.document.write('<html><head><title>All Student Reports</title><style>@page{size:A4 portrait;margin:10mm;}body{margin:0;}</style></head><body>' + allPages + '<script>window.onload=function(){window.print();};<\\/script></body></html>');
+      w.document.close();
+    });
+
+    // Batch ZIP Download
+    btnDownloadAllZip.addEventListener('click', async () => {
+      if (currentStudentReports.length === 0) return;
+      if (typeof JSZip === 'undefined') {
+        alert('JSZip library is still loading. Please try again.');
+        return;
+      }
+
+      showStatus('Packaging all student PDFs into ZIP...', 10);
+      const zip = new JSZip();
+      const folder = zip.folder('Monthly_Progress_Reports');
+      const container = document.getElementById('hidden-pdf-container');
+
+      for (let i = 0; i < currentStudentReports.length; i++) {
+        const report = currentStudentReports[i];
+        const pct = Math.round(((i + 1) / currentStudentReports.length) * 85);
+        showStatus('Generating PDF (' + (i + 1) + '/' + currentStudentReports.length + '): ' + report.studentName, pct);
+
+        container.innerHTML = generateReportHTML(report);
+        const opt = {
+          margin: [8, 8, 8, 8],
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 1.8, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+        const cleanName = report.studentName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        folder.file('Progress_Report_' + cleanName + '.pdf', pdfBlob);
+        container.innerHTML = '';
+      }
+
+      showStatus('Compressing ZIP file...', 95);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Student_Progress_Reports_' + new Date().toISOString().slice(0, 10) + '.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showStatus('All PDFs successfully downloaded in ZIP!', 100);
+    });
+
+    // Load Sample Data Button
+    btnLoadSample.addEventListener('click', () => {
+      const sampleCSV = [
+        'Student Name,grade,class.name,name,category.name,notes,Due Date,Dropbox Status',
+        '"Alex Mercer",12,"IB English A: Literature HL","Comparative Essay: Postcolonial Perspectives","Summative Assessment","Strong analytical thesis; insightful textual synthesis across both novels.","2026-10-05","Completed & Graded (6/7)"',
+        '"Alex Mercer",12,"IB English A: Literature HL","Oral Commentary Recording","Internal Assessment","Delivered confident spoken analysis with solid pacing.","2026-10-18","Submitted On Time"',
+        '"Alex Mercer",12,"AP Calculus BC","Series Convergence & Taylor Polynomials Exam","Unit Exam","Scored 94%. Flawless mastery of ratio test and error bounds.","2026-10-12","Completed & Graded (94%)"',
+        '"Alex Mercer",12,"AP Calculus BC","Euler Method Computational Lab","Lab Practicum","Code simulation verified; graph exhibits accurate trajectory approximations.","2026-10-24","Submitted On Time"',
+        '"Alex Mercer",12,"IB Physics HL","Electromagnetic Induction Lab Report","Lab Report","Data collection complete. Verify uncertainty margins in table 2.","2026-10-09","Submitted On Time"',
+        '"Alex Mercer",12,"IB Physics HL","Wave Phenomena & Doppler Effect Quiz","Formative Assessment","Solid conceptual grasp; review relativistic Doppler shift.","2026-10-22","Completed & Graded (88%)"',
+        '"Alex Mercer",12,"AP World History: Modern","DBQ Essay: Decolonization in South Asia","Document-Based Essay","Exceptional sourcing and historical nuance demonstrated.","2026-10-15","Submitted On Time"',
+        '"Alex Mercer",12,"AP World History: Modern","Cold War Ideology Seminar Discussion","Participation","Active participant; led discussion segment on non-aligned movement.","2026-10-28","Completed (Full Credit)"',
+        '"Maya Lin",11,"IB English A: Literature HL","Poetry Commentary: Sylvia Plath Analysis","Summative Assessment","Nuanced reading of recurring motifs. Superb close-reading.","2026-10-04","Completed & Graded (7/7)"',
+        '"Maya Lin",11,"IB English A: Literature HL","Independent Reading Journal #4","Formative Assessment","Thoughtful reflections submitted on time with citations.","2026-10-19","Submitted On Time"',
+        '"Maya Lin",11,"AP Calculus BC","Optimization & Related Rates Problem Set","Homework Set","Neat derivations and step-by-step calculus work shown clearly.","2026-10-08","Completed & Graded (98%)"',
+        '"Maya Lin",11,"AP Calculus BC","Derivative Applications Midterm","Summative Assessment","Outstanding analytical rigor across all free-response items.","2026-10-21","Completed & Graded (96%)"',
+        '"Maya Lin",11,"IB Chemistry HL","Acid-Base Titration Investigation","Lab Report","Accurate equivalence point; thorough error analysis included.","2026-10-11","Submitted On Time"',
+        '"Maya Lin",11,"IB Chemistry HL","Thermodynamics & Gibbs Free Energy Problem Set","Formative Assessment","All problems completed accurately. Ready for unit exam.","2026-10-26","Completed & Graded (100%)"',
+        '"Maya Lin",11,"Visual Arts HL","Comparative Study Exhibition Portfolio Piece 1","Studio Portfolio","Impressive conceptual cohesion and thoughtful medium exploration.","2026-10-16","Submitted On Time"',
+        '"Carlos Rodriguez",12,"IB English A: Literature HL","Drama Analysis: Oedipus Rex Motifs","Summative Assessment","Good grasp of dramatic irony. Remember to cite line numbers.","2026-10-06","Submitted Late (Approved)"',
+        '"Carlos Rodriguez",12,"IB English A: Literature HL","Literary Devices Quiz","Formative Assessment","Review metonymy vs synecdoche definitions for next quiz.","2026-10-20","Completed & Graded (82%)"',
+        '"Carlos Rodriguez",12,"AP Calculus BC","Integration Techniques Master Problem Set","Homework Set","Integration by parts is solid; review trig substitution.","2026-10-10","Submitted On Time"',
+        '"Carlos Rodriguez",12,"AP Calculus BC","Differential Equations Assessment","Summative Assessment","Separation of variables executed cleanly. Commendable improvement!","2026-10-25","Completed & Graded (85%)"',
+        '"Carlos Rodriguez",12,"IB Physics HL","Rotational Mechanics Lab Report","Lab Report","Moment of inertia calculations need brief revision before final mark.","2026-10-14","Resubmission Requested"',
+        '"Carlos Rodriguez",12,"IB Physics HL","Thermal Physics Problem Set","Formative Assessment","Great effort on calorimetry exercises. Minor unit note provided.","2026-10-27","Submitted On Time"',
+        '"Carlos Rodriguez",12,"AP World History: Modern","Decolonization Primary Source Analysis","Formative Assessment","Solid historical contextualization. Work turned in promptly.","2026-10-17","Completed & Graded (90%)"',
+        '"Sophia Patel",11,"IB English A: Literature HL","Prose Passage Commentary Draft","Formative Assessment","Engaging introduction. Expand on the shifting narrative voice.","2026-10-03","Submitted On Time"',
+        '"Sophia Patel",11,"IB English A: Literature HL","Vocabulary & Literary Terminology Check","Quiz","Full credit achieved. Consistent attention to technical terms.","2026-10-17","Completed & Graded (100%)"',
+        '"Sophia Patel",11,"AP Calculus BC","Implicit Differentiation Challenge Tasks","Homework Set","Very clean algebraic manipulations; well-organized solutions.","2026-10-07","Submitted On Time"',
+        '"Sophia Patel",11,"AP Calculus BC","Mean Value Theorem Application Tasks","Formative Assessment","Conditions checked appropriately before applying the theorem.","2026-10-23","Completed & Graded (92%)"',
+        '"Sophia Patel",11,"IB Chemistry HL","Spectrophotometry Beer-Lambert Law Lab","Lab Practicum","Calibration curve plotted with high precision (R^2 = 0.998). Superb.","2026-10-13","Submitted On Time"',
+        '"Sophia Patel",11,"IB Chemistry HL","Kinetics Reaction Rate Order Determination","Summative Assessment","Method of initial rates solved accurately across all trials.","2026-10-29","Completed & Graded (95%)"',
+        '"Sophia Patel",11,"Visual Arts HL","Process Journal Entry: Mixed Media Studies","Studio Journal","Rich visual inquiry and reflective annotations on cultural identity.","2026-10-18","Submitted On Time"'
+      ].join('\\n');
+
+      fileNameEl.textContent = 'sample_diploma_classes_oct2026.csv';
+      fileInfo.style.display = 'flex';
+
+      Papa.parse(sampleCSV, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        complete: function(results) {
+          rawParsedRows = results.data;
+          fileRowsEl.textContent = rawParsedRows.length + ' sample rows';
+          document.getElementById('stat-raw').textContent = rawParsedRows.length;
+          autoDetectColumns(results.meta.fields || []);
+          
+          startDateInput.value = '2026-10-01';
+          endDateInput.value = '2026-10-31';
+
+          processReports();
+        }
+      });
+    });
+
+    // Auto-load sample data on first visit for zero-barrier preview
+    window.addEventListener('DOMContentLoaded', () => {
+      btnLoadSample.click();
+    });
+  </script>
+</body>
+</html>

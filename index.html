@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Monthly Progress Report Generator</title>
+    <meta name="description" content="Client-side generator that parses Diploma Classes CSV exports, filters by date range, and automatically formats clean, parent-ready 1-2 page student progress summary PDFs." />
+    <meta property="og:title" content="Student Monthly Progress Report Generator" />
+    <meta property="og:description" content="Client-side generator that parses Diploma Classes CSV exports, filters by date range, and automatically formats clean, parent-ready 1-2 page student progress summary PDFs." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- PapaParse CDN for robust CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- html2pdf.js CDN for client-side PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
